@@ -31,6 +31,7 @@ if [ ! -f "$wd"/etc_fai/grub.cfg ]; then
 fi
 
 find "$wd"/build_tmp/ ! -name .gitkeep -type f -exec rm -f {} +
+sudo mkdir -p /tmp/fai /tmp/fai-build
 cp -r "$wd"/srv_fai_config/. "$wd"/build_tmp/
 cp -r "$wd"/usercustomization/. "$wd"/build_tmp/
 
