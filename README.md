@@ -88,11 +88,11 @@ SEAPATH_USE_LOCAL_IMAGES=1 \
   ./build_iso.sh --profile manager
 ```
 
-The Manager image is built from `rte-i/SEAPATH-Manager` commit
-`ad18387e3e9f1a802589e83adc388470ebf66f20`. Its native offline preparation is
-kept intact; `manager-image/SEAPATH-Manager.patch` only pins the source commit of
-the embedded `seapath/ansible` repository. Build the `latest` image before
-running the ISO build:
+The Manager image follows the latest `origin/master` commit from
+`rte-i/SEAPATH-Manager` by default. Its native offline preparation is kept
+intact; `manager-image/SEAPATH-Manager.patch` only pins the source commit of the
+embedded `seapath/ansible` repository. Build the `latest` image before running
+the ISO build:
 
 ```bash
 ./scripts/build_seapath_manager_image.sh
@@ -100,7 +100,8 @@ SEAPATH_USE_LOCAL_IMAGES=1 ./build_iso.sh --profile manager
 ```
 
 Set the same `SEAPATH_PODMAN_ROOT` for both commands when using isolated Podman
-storage.
+storage. Set `SEAPATH_MANAGER_REF` to a commit or ref only when an explicitly
+reproducible Manager build is required.
 
 The image recipe embeds the prepared `seapath/ansible` `seapathalloc` branch at
 commit `526637f39eb5f17ff76b452425842ea85bf25d45`, including its submodules,
