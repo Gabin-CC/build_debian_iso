@@ -88,9 +88,11 @@ SEAPATH_USE_LOCAL_IMAGES=1 \
   ./build_iso.sh --profile manager
 ```
 
-The exact Manager image customization used by this profile is kept in
-`manager-image/SEAPATH-Manager.patch`. Build the `latest` image from the pinned
-SEAPATH-Manager source commit before running the ISO build:
+The Manager image is built from `rte-i/SEAPATH-Manager` commit
+`ad18387e3e9f1a802589e83adc388470ebf66f20`. Its native offline preparation is
+kept intact; `manager-image/SEAPATH-Manager.patch` only pins the source commit of
+the embedded `seapath/ansible` repository. Build the `latest` image before
+running the ISO build:
 
 ```bash
 ./scripts/build_seapath_manager_image.sh
@@ -100,8 +102,10 @@ SEAPATH_USE_LOCAL_IMAGES=1 ./build_iso.sh --profile manager
 Set the same `SEAPATH_PODMAN_ROOT` for both commands when using isolated Podman
 storage.
 
-The image recipe embeds `seapath/ansible` at commit
-`66955739a755491b754d949bfca75624f698b1d8`.
+The image recipe embeds the prepared `seapath/ansible` `seapathalloc` branch at
+commit `526637f39eb5f17ff76b452425842ea85bf25d45`, including its submodules,
+collections and offline Cockpit assets. It also uses the upstream-pinned
+Ansible Core 2.16 runtime.
 
 ## Generate SEAPATH Debian image for SEAPATH Installer
 

@@ -3,8 +3,8 @@
 set -euo pipefail
 
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-source_repository=${SEAPATH_MANAGER_REPOSITORY:-git@github.com:rte-i/SEAPATH-Manager.git}
-source_commit=${SEAPATH_MANAGER_COMMIT:-070a03dd957f9de905fd17b4c1bdb6a0587e84d0}
+source_repository=${SEAPATH_MANAGER_REPOSITORY:-https://github.com/rte-i/SEAPATH-Manager.git}
+source_commit=${SEAPATH_MANAGER_COMMIT:-ad18387e3e9f1a802589e83adc388470ebf66f20}
 image=${SEAPATH_MANAGER_IMAGE:-ghcr.io/rte-i/seapath-manager:latest}
 work_dir=$(mktemp -d)
 podman_args=()
