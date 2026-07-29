@@ -103,6 +103,10 @@ Set the same `SEAPATH_PODMAN_ROOT` for both commands when using isolated Podman
 storage. Set `SEAPATH_MANAGER_REF` to a commit or ref only when an explicitly
 reproducible Manager build is required.
 
+The Manager repository is accessed over SSH. The build host therefore needs a
+GitHub credential with access to `rte-i/SEAPATH-Manager`; when building through
+a bastion, forward the local SSH agent with `ssh -A`.
+
 The image recipe embeds the prepared `seapath/ansible` `seapathalloc` branch,
 including its submodules, collections and offline Cockpit assets. It also uses
 the upstream-required Ansible Core 2.16 runtime.
