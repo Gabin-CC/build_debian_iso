@@ -1,0 +1,32 @@
+#!/bin/sh
+
+url=http://127.0.0.1:3000
+credentials=/var/lib/seapath-manager/first-boot-credentials
+marker="${XDG_CONFIG_HOME:-$HOME/.config}/seapath-manager/credentials-shown"
+
+attempt=0
+while [ "$attempt" -lt 90 ]; do
+    if curl --fail --silent --output /dev/null "$url"; then
+        break
+    fi
+    attempt=$((attempt + 1))
+    sleep 2
+done
+
+if [ -r "$credentials" ] && [ ! -e "$marker" ]; then
+    zenity --text-info \
+        --title="SEAPATH Manager — first start" \
+        --filename="$credentials" \
+        --width=520 \
+        --height=260 || true
+    mkdir -p "$(dirname "$marker")"
+    touch "$marker"
+fi
+
+if command -v firefox-esr >/dev/null 2>&1; then
+    browser=firefox-esr
+else
+    browser=firefox
+fi
+
+exec "$browser" --new-window "$url"

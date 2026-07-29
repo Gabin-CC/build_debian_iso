@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=SEAPATH Manager
+Comment=Open the local SEAPATH Manager console
+Exec=/usr/local/bin/seapath-manager-ui
+OnlyShowIn=GNOME;
+X-GNOME-Autostart-enabled=true
+NoDisplay=true

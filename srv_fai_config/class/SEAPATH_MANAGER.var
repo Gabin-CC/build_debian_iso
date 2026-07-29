@@ -1,0 +1,15 @@
+HOSTNAME=seapath-manager
+
+FAI_ALLOW_UNSIGNED=0
+UTC=yes
+TIMEZONE=Europe/Paris
+KEYMAP=fr-latin1
+STOP_ON_ERROR=500
+MAXPACKAGES=900
+
+MANAGER_USERNAME=admin
+# Initial local password: "seapath". Override this hash in usercustomization
+# for a site-specific ISO.
+MANAGER_USERPW='$y$j9T$o1cqUmfzttsbcsnNAtDRW.$7tK9Bzv2UJRz2Z/hfWYMp7IJZKfUKuKn.1aD1aflZFA'
+
+apt_cdn=http://ftp.fr.debian.org

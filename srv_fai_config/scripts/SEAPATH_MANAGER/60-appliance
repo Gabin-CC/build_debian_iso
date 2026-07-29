@@ -1,0 +1,27 @@
+#!/bin/bash
+
+error=0
+trap 'error=$(($?>$error?$?:$error))' ERR
+
+fcopy -m root,root,0644 /etc/containers/systemd/seapath-manager.container
+fcopy -m root,root,0644 /etc/systemd/network/10-seapath-manager.network
+fcopy -m root,root,0644 /etc/systemd/system/seapath-manager-first-boot.service
+fcopy -m root,root,0644 /etc/xdg/autostart/seapath-manager.desktop
+fcopy -m root,root,0755 /usr/local/sbin/seapath-manager-first-boot
+fcopy -m root,root,0755 /usr/local/bin/seapath-manager-ui
+
+# gdm3.service is static on Debian. The package's debconf helper normally
+# creates this alias, but that helper cannot talk to the system bus in the FAI
+# chroot, so create the display-manager alias explicitly.
+ln -sfn /usr/lib/systemd/system/gdm3.service \
+    "$target/etc/systemd/system/display-manager.service"
+
+$ROOTCMD systemctl enable systemd-networkd.service
+$ROOTCMD systemctl disable systemd-networkd-wait-online.service
+$ROOTCMD systemctl enable systemd-resolved.service
+$ROOTCMD ln -sfn /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
+$ROOTCMD systemctl enable ssh.service
+$ROOTCMD systemctl enable seapath-manager-first-boot.service
+$ROOTCMD systemctl set-default graphical.target
+
+exit "$error"

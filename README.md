@@ -28,6 +28,81 @@ Note that this iso is only to be used on UEFI systems. Legacy BIOS is not suppor
 
 However please checkout the Customization section first. There are some things that must be done before building.
 
+### Build the SEAPATH Manager appliance
+
+The dedicated Manager profile installs Debian with GNOME Core,
+systemd-networkd, Firefox ESR and rootful Podman. It embeds
+`ghcr.io/rte-i/seapath-manager:latest`, loads it during installation and starts
+it at boot through a systemd Quadlet:
+
+```bash
+./build_iso.sh --profile manager
+```
+
+The installed appliance uses the following storage layout:
+
+- 512 MiB EFI system partition;
+- a 13 GiB `vg_system` containing `/` (7 GiB), `/var/log` (5 GiB) and
+  500 MiB swap;
+- the remainder of the disk in `vg_appli`, mounted at
+  `/var/lib/containers` for Podman.
+
+At first boot, the appliance creates the persistent Semaphore directories.
+Semaphore and the local account both initially use `admin` / `seapath`; the
+credentials are displayed once when the local administrator opens the GNOME
+session. Override `MANAGER_USERPW` and the first-boot environment file in a
+site customization to ship different initial passwords.
+
+All VM interfaces matching `* !lo` are assigned the static address
+`192.168.200.254/24`; Podman bridge and veth interfaces are excluded so that
+container networking remains functional. The appliance profile does not
+define a default gateway or DNS server.
+
+The local administrator can place VM disk images in
+`/home/admin/Documents/VM`. This directory is mounted read-only inside the
+Manager container as `/mnt/qcow2`, which is the path used by the deployment
+templates.
+
+The container registry must be accessible while building the ISO. If the GHCR
+package is private, authenticate the build host with
+`sudo podman login ghcr.io` first. No registry credential is copied into the
+ISO.
+
+To isolate a build from the host's normal Podman storage, or when the root
+filesystem is too small, set a temporary graph root:
+
+```bash
+SEAPATH_PODMAN_ROOT=/path/with/enough/space/podman \
+  ./build_iso.sh --profile manager
+```
+
+The same graph root is passed to Podman and podman-compose. It can therefore be
+removed as a whole after the resulting ISO and logs have been copied elsewhere.
+
+When the Manager image was built locally in that graph root, it can be embedded
+without publishing it first:
+
+```bash
+SEAPATH_PODMAN_ROOT=/path/to/podman \
+SEAPATH_USE_LOCAL_IMAGES=1 \
+  ./build_iso.sh --profile manager
+```
+
+The exact Manager image customization used by this profile is kept in
+`manager-image/SEAPATH-Manager.patch`. Build the `latest` image from the pinned
+SEAPATH-Manager source commit before running the ISO build:
+
+```bash
+./scripts/build_seapath_manager_image.sh
+SEAPATH_USE_LOCAL_IMAGES=1 ./build_iso.sh --profile manager
+```
+
+Set the same `SEAPATH_PODMAN_ROOT` for both commands when using isolated Podman
+storage.
+
+The image recipe embeds `seapath/ansible` at commit
+`66955739a755491b754d949bfca75624f698b1d8`.
+
 ## Generate SEAPATH Debian image for SEAPATH Installer
 
 The script `generate_seapath_image.sh` will create a raw image that can be used with the SEAPATH Installer.

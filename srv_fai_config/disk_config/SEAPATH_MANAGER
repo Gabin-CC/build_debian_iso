@@ -1,0 +1,18 @@
+# Dedicated SEAPATH Manager appliance layout.
+# The third partition and the Podman LV consume the remaining disk space.
+
+disk_config disk1 disklabel:gpt fstabkey:uuid align-at:1M
+
+primary  /boot/efi  512M  vfat  rw
+primary  -           13G  -     -
+primary  -            1G- -     -
+
+disk_config lvm
+
+vg vg_system disk1.2
+vg_system-root    /                     7G    ext4  noatime,rw lvcreateopts="--zero n"
+vg_system-varlog  /var/log              5G    ext4  noatime,rw lvcreateopts="--zero n"
+vg_system-swap    swap                500M    swap  sw         lvcreateopts="--zero n"
+
+vg vg_appli disk1.3
+vg_appli-podman   /var/lib/containers   1G-   ext4  noatime,rw lvcreateopts="--zero n"

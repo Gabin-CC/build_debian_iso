@@ -1,0 +1,3 @@
+# Pulled when the ISO is built, stored in the ISO and loaded into root Podman
+# storage during installation.
+ghcr.io/rte-i/seapath-manager:latest

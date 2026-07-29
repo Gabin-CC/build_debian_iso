@@ -1,0 +1,18 @@
+#!/bin/bash
+
+error=0
+trap 'error=$(($?>$error?$?:$error))' ERR
+
+if ! $ROOTCMD getent passwd "$MANAGER_USERNAME" >/dev/null; then
+    $ROOTCMD adduser --disabled-password --gecos "SEAPATH Manager administrator" "$MANAGER_USERNAME"
+fi
+
+$ROOTCMD usermod -p "$MANAGER_USERPW" "$MANAGER_USERNAME"
+$ROOTCMD usermod -aG sudo "$MANAGER_USERNAME"
+$ROOTCMD passwd -l root
+
+sed -i -E 's/^[#[:space:]]*PermitRootLogin.*/PermitRootLogin no/' "$target/etc/ssh/sshd_config"
+
+echo "seapath-manager" > "$target/etc/hostname"
+
+exit "$error"

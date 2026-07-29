@@ -1,0 +1,7 @@
+[Match]
+# Keep Podman's bridge and veth links under Podman control.
+Name=* !lo !podman* !veth* !cni-*
+
+[Network]
+Address=192.168.200.254/24
+LinkLocalAddressing=no

@@ -1,0 +1,22 @@
+#!/bin/bash
+
+error=0
+trap 'error=$(($?>$error?$?:$error))' ERR
+shopt -s nullglob
+
+BUILD_IMAGES_DIR="$FAI/files/opt/images"
+LOCAL_IMAGES_DIR="/opt/images"
+
+mkdir -p "$FAI_ROOT$LOCAL_IMAGES_DIR"
+
+for build_image_file in "$BUILD_IMAGES_DIR"/*; do
+    image_name=$(basename "$build_image_file")
+    image_path="$LOCAL_IMAGES_DIR/$image_name"
+
+    echo "Loading container image $image_name"
+    cp "$build_image_file" "$FAI_ROOT$image_path"
+    $ROOTCMD podman load -i "$image_path"
+    rm -f "$FAI_ROOT$image_path"
+done
+
+exit "$error"

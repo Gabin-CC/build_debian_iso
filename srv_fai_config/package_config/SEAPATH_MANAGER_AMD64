@@ -1,0 +1,10 @@
+PACKAGES install-norec
+amd64-microcode
+firmware-amd-graphics
+firmware-intel-misc
+firmware-linux-free
+firmware-linux-nonfree
+firmware-misc-nonfree
+grub-efi-amd64-signed
+linux-image-amd64
+shim-signed

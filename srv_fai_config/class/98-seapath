@@ -3,6 +3,17 @@
 # do not use this if a menu will be presented
 [ "$flag_menu" ] && exit 0
 
+if [ "$flag_manager" ]; then
+    echo DEBIAN FAIBASE TRIXIE64 GRUB_EFI SEAPATH_MANAGER
+    if [ "$(uname -m)" == "aarch64" ]; then
+        echo "SEAPATH_MANAGER_ARM64"
+    else
+        echo "SEAPATH_MANAGER_AMD64"
+    fi
+    echo "USERCUSTOMIZATION"
+    exit 0
+fi
+
 echo DEBIAN FAIBASE TRIXIE64 SEAPATH_COMMON SEAPATH_HOST
 
 [ "$flag_german" ] && echo "GERMAN"

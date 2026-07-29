@@ -1,0 +1,24 @@
+[Unit]
+Description=SEAPATH Manager
+Wants=network-online.target
+After=network-online.target
+Requires=seapath-manager-first-boot.service
+After=seapath-manager-first-boot.service
+
+[Container]
+Image=ghcr.io/rte-i/seapath-manager:latest
+ContainerName=seapath-manager
+Pull=never
+PublishPort=3000:3000
+EnvironmentFile=/etc/seapath-manager/manager.env
+Volume=/var/lib/seapath-manager/data:/var/lib/semaphore
+Volume=/var/lib/seapath-manager/etc:/etc/semaphore
+Volume=/home/admin/Documents/VM:/mnt/qcow2:ro
+Volume=/srv/seapath/images/oci:/mnt/oci:ro
+
+[Service]
+Restart=always
+TimeoutStartSec=180
+
+[Install]
+WantedBy=multi-user.target

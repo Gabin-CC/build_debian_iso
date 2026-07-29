@@ -1,0 +1,64 @@
+diff --git a/Dockerfile b/Dockerfile
+index 9e04390..2658b55 100644
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -3,7 +3,16 @@ FROM docker.io/semaphoreui/semaphore:latest
+ 
+ USER root
+ 
+-RUN apk add --no-cache py3-yaml py3-requests
++RUN apk add --no-cache git py3-yaml py3-requests
++
++# Keep the playbooks used by Semaphore reproducible and available without
++# network access on the installed appliance.
++ARG SEAPATH_ANSIBLE_REPOSITORY=https://github.com/seapath/ansible.git
++ARG SEAPATH_ANSIBLE_COMMIT=66955739a755491b754d949bfca75624f698b1d8
++RUN git clone "$SEAPATH_ANSIBLE_REPOSITORY" /opt/seapath-ansible-repo && \
++    cd /opt/seapath-ansible-repo && \
++    git checkout --detach "$SEAPATH_ANSIBLE_COMMIT" && \
++    git branch -f seapath-manager-pinned "$SEAPATH_ANSIBLE_COMMIT"
+ 
+ # SEAPATH collections (community.libvirt, config_template, community.general
+ # <12.0.0, ...), installed into a path searched before the image's bundled ones.
+@@ -22,7 +31,7 @@ RUN chmod +x /usr/local/bin/seapath-entrypoint /usr/local/bin/seapath-bootstrap.
+     cd /opt/seapath-init-repo && git init -q -b master && \
+     git -c user.email=ci@rte-international.com -c user.name=CI add -A && \
+     git -c user.email=ci@rte-international.com -c user.name=CI commit -qm "init playbook" && \
+-    chown -R 1001:0 /opt/seapath-init-repo
++    chown -R 1001:0 /opt/seapath-init-repo /opt/seapath-ansible-repo
+ 
+ # Zero-config defaults: embedded SQLite, admin/seapath, secrets auto-generated.
+ ENV SEMAPHORE_DB_DIALECT=sqlite \
+diff --git a/README.md b/README.md
+index 6b16485..f29103e 100644
+--- a/README.md
++++ b/README.md
+@@ -201,6 +201,12 @@ Au premier démarrage, `semaphore setup` crée la config, l'admin et
+ **auto-génère les secrets** (cookie hash/encryption, access key encryption) ;
+ puis `bootstrap.py` attend l'API et applique le projet SEAPATH.
+ 
++Le dépôt de playbooks `seapath/ansible` est également cloné dans l'image et
++figé par `SEAPATH_ANSIBLE_COMMIT` dans le `Dockerfile`. Semaphore utilise ce
++dépôt local (`/opt/seapath-ansible-repo`) : l'appliance n'a donc pas besoin de
++GitHub au moment d'exécuter un template. Pour mettre les playbooks à jour,
++modifiez explicitement ce commit puis reconstruisez l'image.
++
+ ## Inventaire dynamique (option avancée)
+ 
+ Le déploiement RTEi d'origine utilise `config/merge-inventory.py`, qui fusionne
+diff --git a/config/seapath-project.yml b/config/seapath-project.yml
+index 120fe4f..6269519 100644
+--- a/config/seapath-project.yml
++++ b/config/seapath-project.yml
+@@ -21,8 +21,9 @@ projects:
+ 
+   repositories:
+   - name: Seapath
+-    git_url: "https://github.com/seapath/ansible.git"
+-    git_branch: main
++    # Pinned and embedded by the Dockerfile so deploy tasks work offline.
++    git_url: "/opt/seapath-ansible-repo"
++    git_branch: seapath-manager-pinned
+     ssh_key: None
+   # Local repo baked into the image (holds the init playbook).
+   - name: SEAPATH Manager

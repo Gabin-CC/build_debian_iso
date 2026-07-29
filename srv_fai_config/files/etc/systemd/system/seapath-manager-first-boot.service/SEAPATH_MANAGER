@@ -1,0 +1,11 @@
+[Unit]
+Description=Initialize SEAPATH Manager appliance
+Before=seapath-manager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/seapath-manager-first-boot
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

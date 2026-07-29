@@ -3,8 +3,17 @@
 wd=$(dirname "$0")
 output_dir=.
 
-COMPOSECMD=(sudo podman-compose)
-CONTAINER_ENGINE=(sudo podman)
+PODMAN_GLOBAL_ARGS=()
+COMPOSE_GLOBAL_ARGS=()
+if [ -n "${SEAPATH_PODMAN_ROOT:-}" ]; then
+    podman_runroot="${SEAPATH_PODMAN_RUNROOT:-${SEAPATH_PODMAN_ROOT}/runroot}"
+    sudo mkdir -p "$SEAPATH_PODMAN_ROOT" "$podman_runroot"
+    PODMAN_GLOBAL_ARGS=(--root "$SEAPATH_PODMAN_ROOT" --runroot "$podman_runroot")
+    COMPOSE_GLOBAL_ARGS=(--podman-args "--root $SEAPATH_PODMAN_ROOT --runroot $podman_runroot")
+fi
+
+COMPOSECMD=(sudo podman-compose "${COMPOSE_GLOBAL_ARGS[@]}")
+CONTAINER_ENGINE=(sudo podman "${PODMAN_GLOBAL_ARGS[@]}")
 COMPOSE_FILE="$(realpath "$wd"/podman-compose.yml)"
 echo "We are going to use" "${CONTAINER_ENGINE[*]}" and "${COMPOSECMD[*]}"
 
@@ -22,8 +31,8 @@ if [ ! -f "$wd"/etc_fai/grub.cfg ]; then
 fi
 
 find "$wd"/build_tmp/ ! -name .gitkeep -type f -exec rm -f {} +
-cp -r "$wd/srv_fai_config/"* "$wd/build_tmp"
-cp -r "$wd/usercustomization/"* "$wd/build_tmp"
+cp -r "$wd"/srv_fai_config/. "$wd"/build_tmp/
+cp -r "$wd"/usercustomization/. "$wd"/build_tmp/
 
 finalClasses="SEAPATH_CLUSTER,SEAPATH_DBG,SEAPATH_KERBEROS,SEAPATH_COCKPIT,"
 
@@ -31,9 +40,18 @@ finalClasses="SEAPATH_CLUSTER,SEAPATH_DBG,SEAPATH_KERBEROS,SEAPATH_COCKPIT,"
 CUSTOM_MODE=false
 CLASSES_ARG=""
 MENU_ARG=""
+PROFILE="seapath"
 
 while [[ $# -gt 0 ]]; do
   case $1 in
+    --profile)
+      if [ -z "$2" ] || [[ "$2" == --* ]]; then
+        echo "Error: --profile requires a value (seapath or manager)" >&2
+        exit 1
+      fi
+      PROFILE="$2"
+      shift 2
+      ;;
     --custom)
       CUSTOM_MODE=true
       shift
@@ -61,6 +79,17 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [[ "$PROFILE" != "seapath" && "$PROFILE" != "manager" ]]; then
+  echo "Error: unsupported profile '$PROFILE' (expected seapath or manager)" >&2
+  exit 1
+fi
+
+if [ "$PROFILE" = "manager" ]; then
+  CUSTOM_MODE=true
+  CLASSES_ARG="SEAPATH_MANAGER"
+  MENU_ARG="manager"
+fi
 
 if [ "$CUSTOM_MODE" == true ]; then
 
@@ -248,15 +277,17 @@ fi
 # Adding the SEAPATH workspace
 "${CONTAINER_ENGINE[@]}" cp "$wd"/build_tmp/. fai-setup:/ext/srv/fai/config/
 
-# Adding the cephadm binary and patching Ceph container image version
-# shellcheck source=scripts/lib/ceph_version.sh
-source "$wd/scripts/lib/ceph_version.sh"
-patch_ceph_container_image "$wd/build_tmp/files/etc/container_images.conf/SEAPATH_CLUSTER"
+# Ceph is only part of the hypervisor profile.
+if [ "$PROFILE" = "seapath" ]; then
+  # shellcheck source=scripts/lib/ceph_version.sh
+  source "$wd/scripts/lib/ceph_version.sh"
+  patch_ceph_container_image "$wd/build_tmp/files/etc/container_images.conf/SEAPATH_CLUSTER"
 
-mkdir -p /tmp/cephadm/usr/local/bin/cephadm
-download_cephadm /tmp/cephadm/usr/local/bin/cephadm/SEAPATH_CLUSTER
-echo "${CONTAINER_ENGINE[@]}" cp /tmp/cephadm/. fai-setup:/ext/srv/fai/config/files/
-"${CONTAINER_ENGINE[@]}" cp /tmp/cephadm/. fai-setup:/ext/srv/fai/config/files/
+  mkdir -p /tmp/cephadm/usr/local/bin/cephadm
+  download_cephadm /tmp/cephadm/usr/local/bin/cephadm/SEAPATH_CLUSTER
+  echo "${CONTAINER_ENGINE[@]}" cp /tmp/cephadm/. fai-setup:/ext/srv/fai/config/files/
+  "${CONTAINER_ENGINE[@]}" cp /tmp/cephadm/. fai-setup:/ext/srv/fai/config/files/
+fi
 # Adding the container images
 # Process container_images.conf files for all classes that have them
 # This handles images for SEAPATH_CLUSTER, SEAPATH_HOST, USERCUSTOMIZATION, and any other classes
@@ -273,6 +304,11 @@ if [ -d "$CONTAINER_IMAGES_BASE_DIR" ]; then
     [ -f "$class_conf_file" ] || continue
     
     class_name=$(basename "$class_conf_file")
+    if [ "$PROFILE" = "manager" ] &&
+       [ "$class_name" != "SEAPATH_MANAGER" ] &&
+       [ "$class_name" != "USERCUSTOMIZATION" ]; then
+      continue
+    fi
     echo "Processing container images for class: $class_name"
     
     # Read images from config file (ignore comments and empty lines)
@@ -292,9 +328,15 @@ if [ -d "$CONTAINER_IMAGES_BASE_DIR" ]; then
       # If yes, we just copy the existing file, otherwise download
       existing_files=$(find "$image_path" -maxdepth 1 -type f 2>/dev/null | head -1)
       if [ -z "$existing_files" ]; then
-        # First time we see this image - download it
-        echo "Downloading image: $i"
-        "${CONTAINER_ENGINE[@]}" pull "$i"
+        # A locally-built image can be reused to produce an ISO without
+        # publishing it to a registry first.
+        if [ "${SEAPATH_USE_LOCAL_IMAGES:-0}" = "1" ] &&
+           "${CONTAINER_ENGINE[@]}" image exists "$i"; then
+          echo "Using local image: $i"
+        else
+          echo "Downloading image: $i"
+          "${CONTAINER_ENGINE[@]}" pull "$i"
+        fi
         "${CONTAINER_ENGINE[@]}" save "$i" | gzip > "$image_path"
       else
         # Image already downloaded - just copy the existing file for this class
@@ -318,18 +360,31 @@ fi
 # Stopping the container after having added stuff in it
 "${COMPOSECMD[@]}" -f "${COMPOSE_FILE}" down
 
-# List user defined Classes
-userClasses=$(grep -Ev "^#|^$" "$wd"/user_classes.conf | tr '\n' ',' | sed -e "s/,$//")
+# List user-defined classes when a local configuration exists.
+userClasses=""
+if [ -f "$wd/user_classes.conf" ]; then
+  userClasses=$(grep -Ev "^#|^$" "$wd"/user_classes.conf | tr '\n' ',' | sed -e "s/,$//")
+fi
+userClassesCsv=""
+if [ -n "$userClasses" ]; then
+  userClassesCsv=",${userClasses}"
+fi
 
 # ARM64 or AMD64
 arch=$(uname -m)
 if [ "$arch" == "aarch64" ]; then
     seapatharch="SEAPATH_ARM64"
+    managerarch="SEAPATH_MANAGER_ARM64"
 else
     seapatharch="SEAPATH_AMD64"
+    managerarch="SEAPATH_MANAGER_AMD64"
 fi
 # Creating the mirror
-CLASSES="FAIBASE,DEBIAN,GRUB_EFI,SEAPATH_COMMON,SEAPATH_HOST,SEAPATH_ISO,${finalClasses}USERCUSTOMIZATION,${userClasses},${seapatharch},LAST"
+if [ "$PROFILE" = "manager" ]; then
+  CLASSES="FAIBASE,DEBIAN,GRUB_EFI,SEAPATH_MANAGER,${managerarch},USERCUSTOMIZATION${userClassesCsv},LAST"
+else
+  CLASSES="FAIBASE,DEBIAN,GRUB_EFI,SEAPATH_COMMON,SEAPATH_HOST,SEAPATH_ISO,${finalClasses}USERCUSTOMIZATION${userClassesCsv},${seapatharch},LAST"
+fi
 "${COMPOSECMD[@]}" -f "${COMPOSE_FILE}" run --rm fai-setup bash -c "\
     cp /etc/fai/apt/keys/* /etc/apt/trusted.gpg.d/ &&\
     fai-mirror -v -c $CLASSES /ext/mirror"

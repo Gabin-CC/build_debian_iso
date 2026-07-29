@@ -1,0 +1,7 @@
+PACKAGES install-norec
+firmware-linux-free
+firmware-linux-nonfree
+firmware-misc-nonfree
+grub-efi-arm64-signed
+linux-image-arm64
+shim-signed
