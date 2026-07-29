@@ -4,11 +4,21 @@ error=0
 trap 'error=$(($?>$error?$?:$error))' ERR
 
 fcopy -m root,root,0644 /etc/containers/systemd/seapath-manager.container
+fcopy -m root,root,0644 /etc/containers/storage.conf
 fcopy -m root,root,0644 /etc/systemd/network/10-seapath-manager.network
 fcopy -m root,root,0644 /etc/systemd/system/seapath-manager-first-boot.service
 fcopy -m root,root,0644 /etc/xdg/autostart/seapath-manager.desktop
 fcopy -m root,root,0755 /usr/local/sbin/seapath-manager-first-boot
 fcopy -m root,root,0755 /usr/local/bin/seapath-manager-ui
+
+install -d -m 0755 "$target/usr/share/seapath-manager"
+{
+    printf 'SEMAPHORE_ADMIN=%s\n' "$MANAGER_SEMAPHORE_USERNAME"
+    printf 'SEMAPHORE_ADMIN_PASSWORD=%s\n' "$MANAGER_SEMAPHORE_PASSWORD"
+    printf 'SEMAPHORE_ADMIN_NAME=SEAPATH Administrator\n'
+    printf 'SEMAPHORE_ADMIN_EMAIL=%s@localhost\n' "$MANAGER_SEMAPHORE_USERNAME"
+} > "$target/usr/share/seapath-manager/manager.env"
+chmod 0600 "$target/usr/share/seapath-manager/manager.env"
 
 # gdm3.service is static on Debian. The package's debconf helper normally
 # creates this alias, but that helper cannot talk to the system bus in the FAI

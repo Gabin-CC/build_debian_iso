@@ -12,4 +12,7 @@ MANAGER_USERNAME=admin
 # for a site-specific ISO.
 MANAGER_USERPW='$y$j9T$o1cqUmfzttsbcsnNAtDRW.$7tK9Bzv2UJRz2Z/hfWYMp7IJZKfUKuKn.1aD1aflZFA'
 
+MANAGER_SEMAPHORE_USERNAME=admin
+MANAGER_SEMAPHORE_PASSWORD=seapath
+
 apt_cdn=http://ftp.fr.debian.org

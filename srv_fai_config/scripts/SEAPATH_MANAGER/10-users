@@ -8,8 +8,17 @@ if ! $ROOTCMD getent passwd "$MANAGER_USERNAME" >/dev/null; then
 fi
 
 $ROOTCMD usermod -p "$MANAGER_USERPW" "$MANAGER_USERNAME"
-$ROOTCMD usermod -aG sudo "$MANAGER_USERNAME"
+$ROOTCMD usermod -aG adm,sudo "$MANAGER_USERNAME"
 $ROOTCMD passwd -l root
+
+$ROOTCMD install -d -o "$MANAGER_USERNAME" -g "$MANAGER_USERNAME" -m 0755 \
+    /var/lib/seapath-manager/images/vm
+$ROOTCMD install -d -o "$MANAGER_USERNAME" -g "$MANAGER_USERNAME" -m 0755 \
+    "/home/$MANAGER_USERNAME/Documents"
+if [ ! -e "$target/home/$MANAGER_USERNAME/Documents/VM" ]; then
+    $ROOTCMD ln -s /var/lib/seapath-manager/images/vm \
+        "/home/$MANAGER_USERNAME/Documents/VM"
+fi
 
 sed -i -E 's/^[#[:space:]]*PermitRootLogin.*/PermitRootLogin no/' "$target/etc/ssh/sshd_config"
 

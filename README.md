@@ -45,22 +45,25 @@ The installed appliance uses the following storage layout:
 - a 13 GiB `vg_system` containing `/` (7 GiB), `/var/log` (5 GiB) and
   500 MiB swap;
 - the remainder of the disk in `vg_appli`, mounted at
-  `/var/lib/containers` for Podman.
+  `/var/lib/seapath-manager` for application state, VM images and Podman
+  storage.
 
 At first boot, the appliance creates the persistent Semaphore directories.
 Semaphore and the local account both initially use `admin` / `seapath`; the
 credentials are displayed once when the local administrator opens the GNOME
-session. Override `MANAGER_USERPW` and the first-boot environment file in a
-site customization to ship different initial passwords.
+session. Override `MANAGER_USERPW`, `MANAGER_SEMAPHORE_USERNAME` and
+`MANAGER_SEMAPHORE_PASSWORD` in a site customization to ship different initial
+credentials.
 
 All VM interfaces matching `* !lo` are assigned the static address
 `192.168.200.254/24`; Podman bridge and veth interfaces are excluded so that
 container networking remains functional. The appliance profile does not
 define a default gateway or DNS server.
 
-The local administrator can place VM disk images in
-`/home/admin/Documents/VM`. This directory is mounted read-only inside the
-Manager container as `/mnt/qcow2`, which is the path used by the deployment
+The local administrator can place VM disk images through
+`/home/admin/Documents/VM`, which points to the persistent appliance directory
+`/var/lib/seapath-manager/images/vm`. The latter is mounted read-only inside
+the Manager container as `/mnt/qcow2`, which is the path used by the deployment
 templates.
 
 The container registry must be accessible while building the ISO. If the GHCR
@@ -69,47 +72,16 @@ package is private, authenticate the build host with
 ISO.
 
 To isolate a build from the host's normal Podman storage, or when the root
-filesystem is too small, set a temporary graph root:
+filesystem is too small, set a temporary graph root and FAI work directory:
 
 ```bash
 SEAPATH_PODMAN_ROOT=/path/with/enough/space/podman \
+FAI_BUILD_TMP=/path/with/enough/space/fai \
   ./build_iso.sh --profile manager
 ```
 
-The same graph root is passed to Podman and podman-compose. It can therefore be
-removed as a whole after the resulting ISO and logs have been copied elsewhere.
-
-When the Manager image was built locally in that graph root, it can be embedded
-without publishing it first:
-
-```bash
-SEAPATH_PODMAN_ROOT=/path/to/podman \
-SEAPATH_USE_LOCAL_IMAGES=1 \
-  ./build_iso.sh --profile manager
-```
-
-The Manager image follows the latest `origin/master` commit from
-`rte-i/SEAPATH-Manager` by default. Its native offline preparation is kept
-intact and follows the latest commit of the upstream `seapath/ansible`
-`seapathalloc` branch at build time. Build the `latest` image before running the
-ISO build:
-
-```bash
-./scripts/build_seapath_manager_image.sh
-SEAPATH_USE_LOCAL_IMAGES=1 ./build_iso.sh --profile manager
-```
-
-Set the same `SEAPATH_PODMAN_ROOT` for both commands when using isolated Podman
-storage. Set `SEAPATH_MANAGER_REF` to a commit or ref only when an explicitly
-reproducible Manager build is required.
-
-The Manager repository is accessed over SSH. The build host therefore needs a
-GitHub credential with access to `rte-i/SEAPATH-Manager`; when building through
-a bastion, forward the local SSH agent with `ssh -A`.
-
-The image recipe embeds the prepared `seapath/ansible` `seapathalloc` branch,
-including its submodules, collections and offline Cockpit assets. It also uses
-the upstream-required Ansible Core 2.16 runtime.
+Both overrides keep temporary build data away from the host's default
+container storage and `/var/tmp`. They do not affect the generated appliance.
 
 ## Generate SEAPATH Debian image for SEAPATH Installer
 

@@ -31,7 +31,9 @@ if [ ! -f "$wd"/etc_fai/grub.cfg ]; then
 fi
 
 find "$wd"/build_tmp/ ! -name .gitkeep -type f -exec rm -f {} +
-sudo mkdir -p /tmp/fai /tmp/fai-build
+FAI_BUILD_TMP=${FAI_BUILD_TMP:-/var/tmp/fai-build}
+export FAI_BUILD_TMP
+sudo mkdir -p /tmp/fai "$FAI_BUILD_TMP"
 cp -r "$wd"/srv_fai_config/. "$wd"/build_tmp/
 cp -r "$wd"/usercustomization/. "$wd"/build_tmp/
 
@@ -41,6 +43,8 @@ finalClasses="SEAPATH_CLUSTER,SEAPATH_DBG,SEAPATH_KERBEROS,SEAPATH_COCKPIT,"
 CUSTOM_MODE=false
 CLASSES_ARG=""
 MENU_ARG=""
+CLASSES_ARG_SET=false
+MENU_ARG_SET=false
 PROFILE="seapath"
 
 while [[ $# -gt 0 ]]; do
@@ -63,6 +67,7 @@ while [[ $# -gt 0 ]]; do
         exit 1
       fi
       CLASSES_ARG="$2"
+      CLASSES_ARG_SET=true
       CUSTOM_MODE=true
       shift 2
       ;;
@@ -72,6 +77,7 @@ while [[ $# -gt 0 ]]; do
         exit 1
       fi
       MENU_ARG="$2"
+      MENU_ARG_SET=true
       CUSTOM_MODE=true
       shift 2
       ;;
@@ -81,15 +87,34 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ "$PROFILE" != "seapath" && "$PROFILE" != "manager" ]]; then
-  echo "Error: unsupported profile '$PROFILE' (expected seapath or manager)" >&2
+PROFILE_BASE_CLASSES=""
+PROFILE_ARCH_AMD64=""
+PROFILE_ARCH_ARM64=""
+PROFILE_CLASSES=""
+PROFILE_MENU=""
+profile_config="$wd/profiles/$PROFILE.conf"
+if [ ! -f "$profile_config" ]; then
+  echo "Error: unsupported profile '$PROFILE'" >&2
+  exit 1
+fi
+# shellcheck source=/dev/null
+source "$profile_config"
+
+if [ -z "$PROFILE_BASE_CLASSES" ] ||
+   [ -z "$PROFILE_ARCH_AMD64" ] ||
+   [ -z "$PROFILE_ARCH_ARM64" ]; then
+  echo "Error: incomplete profile '$PROFILE'" >&2
   exit 1
 fi
 
-if [ "$PROFILE" = "manager" ]; then
+if [ "$CLASSES_ARG_SET" == false ]; then
+  CLASSES_ARG="$PROFILE_CLASSES"
+fi
+if [ "$MENU_ARG_SET" == false ]; then
+  MENU_ARG="$PROFILE_MENU"
+fi
+if [ -n "$CLASSES_ARG" ] || [ -n "$MENU_ARG" ]; then
   CUSTOM_MODE=true
-  CLASSES_ARG="SEAPATH_MANAGER"
-  MENU_ARG="manager"
 fi
 
 if [ "$CUSTOM_MODE" == true ]; then
@@ -246,13 +271,35 @@ if [ "$CUSTOM_MODE" == true ]; then
 
 fi
 
+# Build the complete class list once. It drives mirror creation, optional
+# artifacts and container-image selection.
+userClasses=""
+if [ -f "$wd/user_classes.conf" ]; then
+  userClasses=$(grep -Ev "^#|^$" "$wd"/user_classes.conf | tr '\n' ',' | sed -e "s/,$//")
+fi
+userClassesCsv=""
+if [ -n "$userClasses" ]; then
+  userClassesCsv=",${userClasses}"
+fi
+
 # ARM64 or AMD64
 arch=$(uname -m)
 if [ "$arch" == "aarch64" ]; then
     bfile="BOOKWORM_ARM64.tar.xz"
+    profile_arch="$PROFILE_ARCH_ARM64"
 else
     bfile="TRIXIE64.tar.xz"
+    profile_arch="$PROFILE_ARCH_AMD64"
 fi
+
+CLASSES="${PROFILE_BASE_CLASSES},${finalClasses}USERCUSTOMIZATION${userClassesCsv},${profile_arch},LAST"
+
+class_is_selected() {
+  case ",$CLASSES," in
+    *",$1,"*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
 
 # Creating the NFSROOT
 # Removing *.profile since we don't use them
@@ -278,8 +325,8 @@ fi
 # Adding the SEAPATH workspace
 "${CONTAINER_ENGINE[@]}" cp "$wd"/build_tmp/. fai-setup:/ext/srv/fai/config/
 
-# Ceph is only part of the hypervisor profile.
-if [ "$PROFILE" = "seapath" ]; then
+# Ceph artifacts are only needed when the corresponding class is selected.
+if class_is_selected SEAPATH_CLUSTER; then
   # shellcheck source=scripts/lib/ceph_version.sh
   source "$wd/scripts/lib/ceph_version.sh"
   patch_ceph_container_image "$wd/build_tmp/files/etc/container_images.conf/SEAPATH_CLUSTER"
@@ -296,20 +343,14 @@ CONTAINER_IMAGES_BASE_DIR="$wd/build_tmp/files/etc/container_images.conf"
 [ -d "$CONTAINER_IMAGES_BASE_DIR" ] || CONTAINER_IMAGES_BASE_DIR="$wd/srv_fai_config/files/etc/container_images.conf"
 
 if [ -d "$CONTAINER_IMAGES_BASE_DIR" ]; then
-  # Clean up any previous temp directory
-  CONTAINER_CACHE="/var/tmp/container_images"
-  rm -rf ${CONTAINER_CACHE}
+  CONTAINER_CACHE=$(mktemp -d "$FAI_BUILD_TMP/container-images.XXXXXX")
   
   # Process each class configuration file
   for class_conf_file in "$CONTAINER_IMAGES_BASE_DIR"/*; do
     [ -f "$class_conf_file" ] || continue
     
     class_name=$(basename "$class_conf_file")
-    if [ "$PROFILE" = "manager" ] &&
-       [ "$class_name" != "SEAPATH_MANAGER" ] &&
-       [ "$class_name" != "USERCUSTOMIZATION" ]; then
-      continue
-    fi
+    class_is_selected "$class_name" || continue
     echo "Processing container images for class: $class_name"
     
     # Read images from config file (ignore comments and empty lines)
@@ -350,9 +391,9 @@ if [ -d "$CONTAINER_IMAGES_BASE_DIR" ]; then
   
   # Copy all images to the container after processing all classes
   if [ -d "${CONTAINER_CACHE}" ]; then
-    echo "${CONTAINER_ENGINE[@]}" cp ${CONTAINER_CACHE}/. fai-setup:/ext/srv/fai/files/
-    "${CONTAINER_ENGINE[@]}" cp ${CONTAINER_CACHE}/. fai-setup:/ext/srv/fai/config/files/
-    rm -rf ${CONTAINER_CACHE}
+    echo "${CONTAINER_ENGINE[@]}" cp "${CONTAINER_CACHE}"/. fai-setup:/ext/srv/fai/config/files/
+    "${CONTAINER_ENGINE[@]}" cp "${CONTAINER_CACHE}"/. fai-setup:/ext/srv/fai/config/files/
+    rm -rf "$CONTAINER_CACHE"
   fi
 else
   echo "Warning: container_images.conf directory not found, skipping image import" >&2
@@ -361,31 +402,7 @@ fi
 # Stopping the container after having added stuff in it
 "${COMPOSECMD[@]}" -f "${COMPOSE_FILE}" down
 
-# List user-defined classes when a local configuration exists.
-userClasses=""
-if [ -f "$wd/user_classes.conf" ]; then
-  userClasses=$(grep -Ev "^#|^$" "$wd"/user_classes.conf | tr '\n' ',' | sed -e "s/,$//")
-fi
-userClassesCsv=""
-if [ -n "$userClasses" ]; then
-  userClassesCsv=",${userClasses}"
-fi
-
-# ARM64 or AMD64
-arch=$(uname -m)
-if [ "$arch" == "aarch64" ]; then
-    seapatharch="SEAPATH_ARM64"
-    managerarch="SEAPATH_MANAGER_ARM64"
-else
-    seapatharch="SEAPATH_AMD64"
-    managerarch="SEAPATH_MANAGER_AMD64"
-fi
 # Creating the mirror
-if [ "$PROFILE" = "manager" ]; then
-  CLASSES="FAIBASE,DEBIAN,GRUB_EFI,SEAPATH_MANAGER,${managerarch},USERCUSTOMIZATION${userClassesCsv},LAST"
-else
-  CLASSES="FAIBASE,DEBIAN,GRUB_EFI,SEAPATH_COMMON,SEAPATH_HOST,SEAPATH_ISO,${finalClasses}USERCUSTOMIZATION${userClassesCsv},${seapatharch},LAST"
-fi
 "${COMPOSECMD[@]}" -f "${COMPOSE_FILE}" run --rm fai-setup bash -c "\
     cp /etc/fai/apt/keys/* /etc/apt/trusted.gpg.d/ &&\
     fai-mirror -v -c $CLASSES /ext/mirror"

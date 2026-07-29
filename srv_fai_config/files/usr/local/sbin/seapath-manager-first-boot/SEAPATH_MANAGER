@@ -5,28 +5,25 @@ config_dir=/etc/seapath-manager
 state_dir=/var/lib/seapath-manager
 environment_file="$config_dir/manager.env"
 credentials_file="$state_dir/first-boot-credentials"
+environment_seed=/usr/share/seapath-manager/manager.env
 
 install -d -m 0700 "$config_dir"
 install -d -o 1001 -g 0 -m 0750 "$state_dir/data" "$state_dir/etc"
-install -d -o admin -g admin -m 0755 /home/admin/Documents/VM
-install -d -m 0755 /srv/seapath/images/oci
 
 if [ ! -s "$environment_file" ]; then
     umask 077
-    {
-        echo "SEMAPHORE_ADMIN=admin"
-        echo "SEMAPHORE_ADMIN_PASSWORD=seapath"
-        echo "SEMAPHORE_ADMIN_NAME=SEAPATH Administrator"
-        echo "SEMAPHORE_ADMIN_EMAIL=admin@localhost"
-    } > "$environment_file"
+    cp "$environment_seed" "$environment_file"
+
+    admin_user=$(sed -n 's/^SEMAPHORE_ADMIN=//p' "$environment_file")
+    admin_password=$(sed -n 's/^SEMAPHORE_ADMIN_PASSWORD=//p' "$environment_file")
 
     {
         echo "SEAPATH Manager"
         echo "URL: http://localhost:3000"
-        echo "User: admin"
-        echo "Password: seapath"
+        echo "User: $admin_user"
+        echo "Password: $admin_password"
     } > "$credentials_file"
 
-    chown root:admin "$credentials_file"
+    chown root:adm "$credentials_file"
     chmod 0640 "$credentials_file"
 fi

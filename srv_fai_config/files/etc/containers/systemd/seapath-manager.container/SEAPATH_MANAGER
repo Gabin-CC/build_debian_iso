@@ -13,8 +13,7 @@ PublishPort=3000:3000
 EnvironmentFile=/etc/seapath-manager/manager.env
 Volume=/var/lib/seapath-manager/data:/var/lib/semaphore
 Volume=/var/lib/seapath-manager/etc:/etc/semaphore
-Volume=/home/admin/Documents/VM:/mnt/qcow2:ro
-Volume=/srv/seapath/images/oci:/mnt/oci:ro
+Volume=/var/lib/seapath-manager/images/vm:/mnt/qcow2:ro
 
 [Service]
 Restart=always
