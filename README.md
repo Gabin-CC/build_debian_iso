@@ -90,9 +90,9 @@ SEAPATH_USE_LOCAL_IMAGES=1 \
 
 The Manager image follows the latest `origin/master` commit from
 `rte-i/SEAPATH-Manager` by default. Its native offline preparation is kept
-intact; `manager-image/SEAPATH-Manager.patch` only pins the source commit of the
-embedded `seapath/ansible` repository. Build the `latest` image before running
-the ISO build:
+intact and follows the latest commit of the upstream `seapath/ansible`
+`seapathalloc` branch at build time. Build the `latest` image before running the
+ISO build:
 
 ```bash
 ./scripts/build_seapath_manager_image.sh
@@ -103,10 +103,9 @@ Set the same `SEAPATH_PODMAN_ROOT` for both commands when using isolated Podman
 storage. Set `SEAPATH_MANAGER_REF` to a commit or ref only when an explicitly
 reproducible Manager build is required.
 
-The image recipe embeds the prepared `seapath/ansible` `seapathalloc` branch at
-commit `526637f39eb5f17ff76b452425842ea85bf25d45`, including its submodules,
-collections and offline Cockpit assets. It also uses the upstream-pinned
-Ansible Core 2.16 runtime.
+The image recipe embeds the prepared `seapath/ansible` `seapathalloc` branch,
+including its submodules, collections and offline Cockpit assets. It also uses
+the upstream-required Ansible Core 2.16 runtime.
 
 ## Generate SEAPATH Debian image for SEAPATH Installer
 
